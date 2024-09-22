@@ -15,8 +15,8 @@ pip install -r requirements.txt
 ``` bash
 $ bash scripts/comp_rw.sh
 ```
-- Implementation of model decomposition in `decompose.py`
-- Implementation of reweighting in `train_components.py`
+- Implementation of model decomposition: [decompose.py](decompose.py)
+- Implementation of reweighting: [train_components.py](train_components.py)
 
 
 ### Standard ICL
