@@ -75,8 +75,8 @@ def load_data(tokenizer, fn, option_ids=None, demo_str=''):
 
     def debug_parse_input_output(txt): # for llama3
         '''
-        There are bugs when setting `return_offsets_mapping=True` in llama3's tokenizer as of Sep 2024.
-        When use llama3 as the LLM, use `debug_parse_input_output()` instead of `parse_input_output()`
+        There are bugs in llama3's tokenizer when setting `return_offsets_mapping=True` as of Sep 2024.
+        For llama3, use `debug_parse_input_output()` instead of `parse_input_output()`
         '''
         try:
             tokens = tokenizer.encode(txt, add_special_tokens=False)

@@ -58,7 +58,7 @@ if __name__ == "__main__":
             all_pred_labels.append(preds)
             all_probs.append(probs)
 
-        all_pred_labels = np.concatenate(all_pred_labels)
+        all_pred_labels = torch.cat(all_pred_labels).numpy()
         acc = (all_pred_labels == test_label_ids).mean()
         all_probs = torch.cat(all_probs)
 

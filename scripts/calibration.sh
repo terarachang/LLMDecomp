@@ -18,4 +18,5 @@ do
 done
 COM
 
-python train_calib.py
+python train_calib.py --n_labels 12
+python train_calib.py --n_labels 24

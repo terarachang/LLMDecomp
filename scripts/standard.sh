@@ -1,6 +1,6 @@
 model_arr=('meta-llama/Llama-2-7b-hf' 'meta-llama/Llama-2-13b-hf' 'mistralai/Mistral-7B-Instruct-v0.1')
 task_arr=('sst2' 'boolq' 'qqp' 'wic' 'rte' 'mnli' 'agnews' 'arc')
-n=12
+n=24
 
 seed_arr=(0 1 2 3 4)
 model=${model_arr[0]}

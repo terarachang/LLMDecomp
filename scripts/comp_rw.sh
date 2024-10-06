@@ -15,4 +15,5 @@ do
     done
 done
 
-python train_components.py
+python train_components.py --n_labels 12
+python train_components.py --n_labels 24
