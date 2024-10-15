@@ -19,14 +19,19 @@ if __name__ == "__main__":
     set_more_args(args, out_dir='DECOMP')
 
 
-    def rms_norm(x, scale):
-        # x: [BS, d_model, n_heads], scale: [BS, 1, 1], model.model.norm.weight: [d_model]
+    def rms_norm(x, rsqrt):
+        '''
+        modified from: https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L68
+        x: [BS, d_model, n_heads], or [BS, d_model, 1]
+        rsqrt: [BS, 1, 1]
+        model.model.norm.weight: [d_model]
+        '''
         x = x.to(torch.float32)
-        x = x * scale
-        return model.model.norm.weight.unsqueeze(-1) * x.to(args.dtype)
+        x = x * rsqrt                                                   # x * 1/RMS
+        return model.model.norm.weight.unsqueeze(-1) * x.to(args.dtype) # r * x
 
-    def unembed(h, ln_scale):
-        h = rms_norm(h, ln_scale)
+    def unembed(h, ln_rsqrt):
+        h = rms_norm(h, ln_rsqrt)
         #[n_options, d_model] x [BS, d_model, n_heads] -> [BS, n_options, n_heads]
         projs = torch.matmul(model.lm_head.weight[option_ids], h).cpu()
         return projs
@@ -43,7 +48,7 @@ if __name__ == "__main__":
 
             projs_mlp = torch.zeros((len(test_sents), n_layers, len(option_ids)), dtype=args.dtype)
             projs_head = torch.zeros((len(test_sents), n_layers, n_heads, len(option_ids)), dtype=args.dtype)
-            projs_resid_post = torch.zeros((len(test_sents), len(option_ids)), dtype=args.dtype)
+            projs_full = torch.zeros((len(test_sents), len(option_ids)), dtype=args.dtype)
             for i in tqdm(range(0, len(test_sents), args.batch_size)):
                 batch_sents = test_sents[i:i+args.batch_size]
                 inputs = tokenizer(batch_sents, return_tensors="pt", padding=True)
@@ -52,8 +57,8 @@ if __name__ == "__main__":
                 bs = len(positions)
 
                 out = model.run_with_cache(input_ids, last_positions = positions)
-                ln_scale = out[1]['model.norm.hook_scale'][range(bs), positions].unsqueeze(-1)
-                projs_resid_post[i:i+bs] = out[0].logits[range(bs), positions][:, option_ids].cpu()
+                ln_rsqrt = out[1]['model.norm.hook_rsqrt'][range(bs), positions].unsqueeze(-1)
+                projs_full[i:i+bs] = out[0].logits[range(bs), positions][:, option_ids].cpu()
 
                 # Early Decode
                 for l in range(n_layers):
@@ -63,8 +68,8 @@ if __name__ == "__main__":
                     attn_l = out[1][attn_name]
                     assert mlp_l.shape == (bs, d_model, 1), mlp_l.shape
                     assert attn_l.shape == (bs, d_model, n_heads), attn_l.shape
-                    projs_mlp[i:i+bs, l] = unembed(mlp_l, ln_scale).squeeze()        # [BS, n_options]
-                    projs_head[i:i+bs, l] = unembed(attn_l, ln_scale).transpose(1,2) # [BS, n_heads, n_options]
+                    projs_mlp[i:i+bs, l] = unembed(mlp_l, ln_rsqrt).squeeze()        # [BS, n_options]
+                    projs_head[i:i+bs, l] = unembed(attn_l, ln_rsqrt).transpose(1,2) # [BS, n_heads, n_options]
                 del out # avoid oom
 
             projs_mlp = projs_mlp.permute((1, 0, 2))
@@ -81,10 +86,10 @@ if __name__ == "__main__":
                     accs_head[l, h_idx] = calc_acc(projs_head[l, h_idx])
 
             # save
-            acc_full = calc_acc(projs_resid_post)
+            acc_full = calc_acc(projs_full)
             print(f"FullModel: {acc_full:.1%}")
             np.save(os.path.join(args.out_dir, f'acc-resid_post-{args.mode}-{seed}.npy'), acc_full)
-            torch.save(projs_resid_post, os.path.join(args.out_dir, f'projs-resid_post-{args.mode}-{seed}.pt'))
+            torch.save(projs_full, os.path.join(args.out_dir, f'projs-resid_post-{args.mode}-{seed}.pt'))
 
             print(f'TopHead: {accs_head.max():.1%}')
             np.save(os.path.join(args.out_dir, f'acc-heads-{args.mode}-{seed}.npy'), accs_head)
